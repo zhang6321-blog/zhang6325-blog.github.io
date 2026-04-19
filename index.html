@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>像素机甲对战</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #1a1a2e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+        }
+
+        .game-container {
+            position: relative;
+            background: #0f0f23;
+            border: 4px solid #4a4a6a;
+            box-shadow: 0 0 20px rgba(100, 100, 255, 0.3);
+        }
+
+        #gameCanvas {
+            display: block;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+        }
+
+        .ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+        }
+
+        .player-stats {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 8px 12px;
+            border: 2px solid;
+            min-width: 200px;
+        }
+
+        .player1-stats {
+            border-color: #ff6b6b;
+        }
+
+        .player2-stats {
+            border-color: #4ecdc4;
+            text-align: right;
+        }
+
+        .player-name {
+            color: #fff;
+            font-size: 14px;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        .health-bar-container {
+            background: #333;
+            height: 20px;
+            border: 2px solid #555;
+            position: relative;
+        }
+
+        .health-bar {
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+
+        .player1-stats .health-bar {
+            background: linear-gradient(to bottom, #ff8787, #ff6b6b);
+        }
+
+        .player2-stats .health-bar {
+            background: linear-gradient(to bottom, #6ee7de, #4ecdc4);
+        }
+
+        .health-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font-size: 12px;
+            text-shadow: 1px 1px 2px #000;
+            pointer-events: none;
+        }
+
+        .controls-info {
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px 20px;
+            color: #aaa;
+            font-size: 11px;
+            text-align: center;
+            border: 2px solid #333;
+        }
+
+        .controls-info span {
+            margin: 0 10px;
+        }
+
+        .key {
+            display: inline-block;
+            background: #444;
+            padding: 2px 8px;
+            border-radius: 3px;
+            color: #fff;
+            border: 1px solid #666;
+        }
+
+        .game-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.9);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            color: #fff;
+        }
+
+        .game-overlay.active {
+            display: flex;
+        }
+
+        .game-title {
+            font-size: 48px;
+            margin-bottom: 20px;
+            text-shadow: 0 0 20px rgba(255, 100, 100, 0.5);
+            color: #ff6b6b;
+        }
+
+        .game-subtitle {
+            font-size: 24px;
+            margin-bottom: 40px;
+            color: #4ecdc4;
+        }
+
+        .start-button {
+            background: linear-gradient(to bottom, #6ee7de, #4ecdc4);
+            color: #000;
+            border: none;
+            padding: 15px 50px;
+            font-size: 20px;
+            font-family: 'Courier New', monospace;
+            cursor: pointer;
+            border: 3px solid #2d9d94;
+            transition: all 0.2s;
+        }
+
+        .start-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(78, 205, 196, 0.5);
+        }
+
+        .winner-text {
+            font-size: 36px;
+            margin-bottom: 20px;
+            text-shadow: 0 0 20px rgba(255, 255, 100, 0.5);
+        }
+
+        .player1-stats .player-name { color: #ff6b6b; }
+        .player2-stats .player-name { color: #4ecdc4; }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <canvas id="gameCanvas" width="960" height="540"></canvas>
+        
+        <div class="ui-overlay" id="uiOverlay" style="display: none;">
+            <div class="player-stats player1-stats">
+                <div class="player-name">机甲 A - 玩家1</div>
+                <div class="health-bar-container">
+                    <div class="health-bar" id="healthBar1" style="width: 100%;"></div>
+                    <span class="health-text" id="healthText1">100/100</span>
+                </div>
+            </div>
+            <div class="player-stats player2-stats">
+                <div class="player-name">机甲 B - 玩家2</div>
+                <div class="health-bar-container">
+                    <div class="health-bar" id="healthBar2" style="width: 100%;"></div>
+                    <span class="health-text" id="healthText2">100/100</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls-info" id="controlsInfo" style="display: none;">
+            <span><span class="key">A</span><span class="key">D</span> 移动</span>
+            <span><span class="key">W</span> 跳跃</span>
+            <span><span class="key">S</span> 防御</span>
+            <span><span class="key">J</span> 攻击</span>
+            <span style="margin-left: 40px;"><span class="key">←</span><span class="key">→</span> 移动</span>
+            <span><span class="key">↑</span> 跳跃</span>
+            <span><span class="key">↓</span> 防御</span>
+            <span><span class="key">1</span> 攻击</span>
+        </div>
+
+        <div class="game-overlay active" id="startScreen">
+            <h1 class="game-title">像素机甲对战</h1>
+            <p class="game-subtitle">MECH BATTLE</p>
+            <button class="start-button" onclick="startGame()">开始游戏</button>
+        </div>
+
+        <div class="game-overlay" id="gameOverScreen">
+            <h1 class="game-title">游戏结束</h1>
+            <p class="winner-text" id="winnerText"></p>
+            <button class="start-button" onclick="restartGame()">再来一局</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const GRAVITY = 0.5;
+        const GROUND_Y = 480;
+
+        let gameState = 'start';
+        let players = [];
+        let particles = [];
+        let keys = {};
+
+        const colors = {
+            player1: {
+                primary: '#ff6b6b',
+                secondary: '#ff8787',
+                dark: '#c92a2a',
+                light: '#ffa8a8',
+                energy: '#ffd43b'
+            },
+            player2: {
+                primary: '#4ecdc4',
+                secondary: '#6ee7de',
+                dark: '#2d9d94',
+                light: '#a5f3ef',
+                energy: '#ffd43b'
+            }
+        };
+
+        class Mech {
+            constructor(x, playerNum) {
+                this.x = x;
+                this.y = GROUND_Y - 80;
+                this.vx = 0;
+                this.vy = 0;
+                this.width = 60;
+                this.height = 80;
+                this.playerNum = playerNum;
+                this.health = 100;
+                this.maxHealth = 100;
+                this.speed = 5;
+                this.jumpPower = -12;
+                this.isGrounded = true;
+                this.isAttacking = false;
+                this.isDefending = false;
+                this.attackCooldown = 0;
+                this.attackFrame = 0;
+                this.animFrame = 0;
+                this.animTimer = 0;
+                this.facingRight = playerNum === 1;
+                this.hitFlash = 0;
+                this.colors = playerNum === 1 ? colors.player1 : colors.player2;
+            }
+
+            update(opponent) {
+                this.animTimer++;
+                if (this.animTimer > 8) {
+                    this.animTimer = 0;
+                    this.animFrame = (this.animFrame + 1) % 4;
+                }
+
+                if (this.attackCooldown > 0) this.attackCooldown--;
+                if (this.hitFlash > 0) this.hitFlash--;
+
+                if (this.isAttacking) {
+                    this.attackFrame++;
+                    if (this.attackFrame === 15) {
+                        this.checkAttackHit(opponent);
+                    }
+                    if (this.attackFrame >= 25) {
+                        this.isAttacking = false;
+                        this.attackFrame = 0;
+                    }
+                }
+
+                if (!this.isAttacking && !this.isDefending) {
+                    const moveKey = this.playerNum === 1 ? 
+                        (keys['a'] || keys['A'] ? -1 : keys['d'] || keys['D'] ? 1 : 0) :
+                        (keys['ArrowLeft'] ? -1 : keys['ArrowRight'] ? 1 : 0);
+                    
+                    this.vx = moveKey * this.speed;
+                    
+                    if (moveKey !== 0) {
+                        this.facingRight = moveKey > 0;
+                    }
+                } else {
+                    this.vx *= 0.8;
+                }
+
+                const jumpKey = this.playerNum === 1 ? 
+                    (keys['w'] || keys['W']) : keys['ArrowUp'];
+                
+                if (jumpKey && this.isGrounded && !this.isAttacking && !this.isDefending) {
+                    this.vy = this.jumpPower;
+                    this.isGrounded = false;
+                    this.createDustParticles();
+                }
+
+                const defendKey = this.playerNum === 1 ? 
+                    (keys['s'] || keys['S']) : keys['ArrowDown'];
+                
+                this.isDefending = defendKey && !this.isAttacking;
+
+                const attackKey = this.playerNum === 1 ? 
+                    (keys['j'] || keys['J']) : keys['1'];
+                
+                if (attackKey && this.attackCooldown === 0 && !this.isAttacking && !this.isDefending) {
+                    this.isAttacking = true;
+                    this.attackCooldown = 40;
+                }
+
+                this.vy += GRAVITY;
+                this.x += this.vx;
+                this.y += this.vy;
+
+                if (this.y + this.height > GROUND_Y) {
+                    this.y = GROUND_Y - this.height;
+                    this.vy = 0;
+                    this.isGrounded = true;
+                }
+
+                if (this.x < 0) this.x = 0;
+                if (this.x + this.width > canvas.width) this.x = canvas.width - this.width;
+            }
+
+            checkAttackHit(opponent) {
+                const attackRange = 80;
+                const attackX = this.facingRight ? 
+                    this.x + this.width : this.x - attackRange;
+                const attackW = attackRange;
+
+                if (attackX < opponent.x + opponent.width &&
+                    attackX + attackW > opponent.x &&
+                    this.y < opponent.y + opponent.height &&
+                    this.y + this.height > opponent.y) {
+                    
+                    let damage = 15;
+                    if (opponent.isDefending) {
+                        damage = 5;
+                        this.createBlockParticles(opponent);
+                    } else {
+                        opponent.hitFlash = 10;
+                        this.createHitParticles(opponent);
+                    }
+                    
+                    opponent.takeDamage(damage);
+                }
+
+                this.createSlashParticles();
+            }
+
+            takeDamage(damage) {
+                this.health = Math.max(0, this.health - damage);
+                this.vx = this.facingRight ? -5 : 5;
+                
+                if (this.health <= 0) {
+                    this.health = 0;
+                    endGame(this.playerNum === 1 ? 2 : 1);
+                }
+            }
+
+            createDustParticles() {
+                for (let i = 0; i < 8; i++) {
+                    particles.push({
+                        x: this.x + this.width / 2 + (Math.random() - 0.5) * 30,
+                        y: GROUND_Y,
+                        vx: (Math.random() - 0.5) * 4,
+                        vy: -Math.random() * 3 - 1,
+                        life: 20,
+                        maxLife: 20,
+                        color: '#888',
+                        size: 4 + Math.random() * 4
+                    });
+                }
+            }
+
+            createHitParticles(target) {
+                for (let i = 0; i < 12; i++) {
+                    particles.push({
+                        x: target.x + target.width / 2,
+                        y: target.y + target.height / 2,
+                        vx: (Math.random() - 0.5) * 10,
+                        vy: (Math.random() - 0.5) * 10,
+                        life: 30,
+                        maxLife: 30,
+                        color: this.colors.energy,
+                        size: 3 + Math.random() * 5
+                    });
+                }
+            }
+
+            createBlockParticles(target) {
+                for (let i = 0; i < 8; i++) {
+                    particles.push({
+                        x: target.x + target.width / 2 + (this.facingRight ? -30 : 30),
+                        y: target.y + target.height / 2,
+                        vx: this.facingRight ? -3 - Math.random() * 3 : 3 + Math.random() * 3,
+                        vy: (Math.random() - 0.5) * 4,
+                        life: 20,
+                        maxLife: 20,
+                        color: '#ffd43b',
+                        size: 5 + Math.random() * 5
+                    });
+                }
+            }
+
+            createSlashParticles() {
+                const baseX = this.facingRight ? this.x + this.width : this.x;
+                const dir = this.facingRight ? 1 : -1;
+                for (let i = 0; i < 6; i++) {
+                    particles.push({
+                        x: baseX + dir * 20,
+                        y: this.y + 20 + Math.random() * 40,
+                        vx: dir * (3 + Math.random() * 5),
+                        vy: (Math.random() - 0.5) * 4,
+                        life: 15,
+                        maxLife: 15,
+                        color: this.colors.light,
+                        size: 3 + Math.random() * 4
+                    });
+                }
+            }
+
+            draw() {
+                ctx.save();
+                
+                if (this.hitFlash > 0) {
+                    ctx.globalCompositeOperation = 'lighter';
+                }
+
+                if (!this.facingRight) {
+                    ctx.translate(this.x + this.width / 2, 0);
+                    ctx.scale(-1, 1);
+                    ctx.translate(-(this.x + this.width / 2), 0);
+                }
+
+                this.drawPixelMech();
+
+                ctx.restore();
+            }
+
+            drawPixelMech() {
+                const x = Math.floor(this.x);
+                const y = Math.floor(this.y);
+                const bobY = this.isGrounded && Math.abs(this.vx) > 0.5 ? 
+                    Math.sin(this.animFrame * Math.PI / 2) * 2 : 0;
+
+                this.drawLegs(x, y + bobY);
+                this.drawBody(x, y + bobY);
+                this.drawArm(x, y + bobY);
+                this.drawHead(x, y + bobY);
+
+                if (this.isDefending) {
+                    this.drawShield(x, y + bobY);
+                }
+            }
+
+            drawLegs(x, y) {
+                const c = this.colors;
+                const legOffset = this.isGrounded && Math.abs(this.vx) > 0.5 ?
+                    Math.sin(this.animFrame * Math.PI / 2) * 4 : 0;
+
+                this.drawPixelRect(x + 8, y + 50, 16, 30, c.dark, c.secondary);
+                this.drawPixelRect(x + 36, y + 50, 16, 30, c.dark, c.secondary);
+
+                this.drawPixelRect(x + 4, y + 72, 24, 8, c.primary, c.light);
+                this.drawPixelRect(x + 32, y + 72, 24, 8, c.primary, c.light);
+            }
+
+            drawBody(x, y) {
+                const c = this.colors;
+
+                this.drawPixelRect(x + 10, y + 25, 40, 30, c.primary, c.light);
+
+                this.drawPixelRect(x + 15, y + 30, 30, 8, c.dark);
+                this.drawPixelRect(x + 20, y + 32, 20, 4, c.energy);
+
+                this.drawPixelRect(x + 8, y + 23, 44, 6, c.secondary);
+                this.drawPixelRect(x + 8, y + 51, 44, 6, c.dark);
+            }
+
+            drawArm(x, y) {
+                const c = this.colors;
+                
+                if (this.isAttacking) {
+                    const attackProgress = this.attackFrame / 25;
+                    const armX = x + 50 + Math.sin(attackProgress * Math.PI) * 30;
+                    const armY = y + 30 - Math.sin(attackProgress * Math.PI) * 10;
+                    
+                    this.drawPixelRect(x + 45, y + 28, 20, 12, c.secondary, c.light);
+                    this.drawPixelRect(armX, armY, 30, 12, c.primary, c.light);
+                    
+                    if (this.attackFrame >= 10 && this.attackFrame <= 18) {
+                        this.drawSwordSlash(armX + 30, armY + 6);
+                    }
+                } else if (this.isDefending) {
+                    this.drawPixelRect(x + 45, y + 20, 12, 25, c.secondary, c.light);
+                } else {
+                    const armBob = this.isGrounded && Math.abs(this.vx) > 0.5 ?
+                        Math.cos(this.animFrame * Math.PI / 2) * 3 : 0;
+                    
+                    this.drawPixelRect(x + 45, y + 28 + armBob, 12, 20, c.secondary, c.light);
+                    this.drawPixelRect(x + 52, y + 44 + armBob, 10, 14, c.primary, c.light);
+                }
+
+                this.drawPixelRect(x + 3, y + 28, 12, 20, c.secondary, c.light);
+                this.drawPixelRect(x, y + 44, 10, 14, c.primary, c.light);
+            }
+
+            drawHead(x, y) {
+                const c = this.colors;
+
+                this.drawPixelRect(x + 18, y + 5, 24, 22, c.primary, c.light);
+                this.drawPixelRect(x + 14, y + 2, 32, 8, c.secondary);
+
+                this.drawPixelRect(x + 22, y + 12, 8, 6, '#fff');
+                this.drawPixelRect(x + 32, y + 12, 8, 6, '#fff');
+                this.drawPixelRect(x + 24, y + 14, 4, 3, '#000');
+                this.drawPixelRect(x + 34, y + 14, 4, 3, '#000');
+
+                this.drawPixelRect(x + 36, y - 5, 4, 12, c.dark);
+                this.drawPixelRect(x + 34, y - 8, 8, 4, c.energy);
+            }
+
+            drawShield(x, y) {
+                const c = this.colors;
+                ctx.globalAlpha = 0.6;
+                
+                ctx.beginPath();
+                ctx.arc(x + 55, y + 40, 35, -Math.PI / 2, Math.PI / 2);
+                ctx.fillStyle = c.light;
+                ctx.fill();
+                
+                ctx.globalAlpha = 1;
+                
+                ctx.beginPath();
+                ctx.arc(x + 55, y + 40, 35, -Math.PI / 2, Math.PI / 2);
+                ctx.strokeStyle = c.primary;
+                ctx.lineWidth = 4;
+                ctx.stroke();
+            }
+
+            drawSwordSlash(x, y) {
+                const c = this.colors;
+                ctx.globalAlpha = 0.8;
+                
+                for (let i = 0; i < 5; i++) {
+                    const sx = x + i * 8;
+                    const sy = y - 20 + i * 8;
+                    const size = 8 - i;
+                    
+                    this.drawPixelRect(sx, sy, size, size * 2, c.energy, c.energy);
+                }
+                
+                ctx.globalAlpha = 1;
+            }
+
+            drawPixelRect(x, y, w, h, fillColor, highlightColor) {
+                ctx.fillStyle = fillColor;
+                ctx.fillRect(Math.floor(x), Math.floor(y), w, h);
+                
+                if (highlightColor) {
+                    ctx.fillStyle = highlightColor;
+                    ctx.fillRect(Math.floor(x), Math.floor(y), w, 2);
+                    ctx.fillRect(Math.floor(x), Math.floor(y), 2, h);
+                }
+            }
+        }
+
+        function drawBackground() {
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#1a1a3e');
+            gradient.addColorStop(0.5, '#2d2d5a');
+            gradient.addColorStop(1, '#1a1a2e');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.fillStyle = '#fff';
+            for (let i = 0; i < 50; i++) {
+                const sx = (i * 97 + 13) % canvas.width;
+                const sy = (i * 73 + 7) % (GROUND_Y - 100);
+                const size = (i % 3) + 1;
+                ctx.fillRect(sx, sy, size, size);
+            }
+
+            ctx.fillStyle = '#2a2a4a';
+            for (let i = 0; i < 10; i++) {
+                const bx = i * 120 - 20;
+                const bh = 80 + (i * 47) % 60;
+                drawPixelBuilding(bx, GROUND_Y - bh, 100, bh);
+            }
+
+            ctx.fillStyle = '#3a3a5a';
+            ctx.fillRect(0, GROUND_Y, canvas.width, canvas.height - GROUND_Y);
+            
+            ctx.fillStyle = '#4a4a6a';
+            ctx.fillRect(0, GROUND_Y, canvas.width, 4);
+
+            ctx.fillStyle = '#2a2a4a';
+            for (let i = 0; i < canvas.width; i += 20) {
+                ctx.fillRect(i, GROUND_Y + 10, 10, 2);
+                ctx.fillRect(i + 5, GROUND_Y + 20, 8, 2);
+            }
+        }
+
+        function drawPixelBuilding(x, y, w, h) {
+            ctx.fillRect(x, y, w, h);
+            
+            ctx.fillStyle = '#4a4a6a';
+            for (let row = 0; row < Math.floor(h / 30); row++) {
+                for (let col = 0; col < Math.floor(w / 25); col++) {
+                    const wx = x + 5 + col * 25;
+                    const wy = y + 10 + row * 30;
+                    if (Math.random() > 0.3) {
+                        ctx.fillStyle = (row + col) % 3 === 0 ? '#ffd43b' : '#4a4a6a';
+                        ctx.fillRect(wx, wy, 15, 15);
+                    }
+                }
+            }
+        }
+
+        function updateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.1;
+                p.life--;
+
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+        }
+
+        function drawParticles() {
+            for (const p of particles) {
+                const alpha = p.life / p.maxLife;
+                ctx.globalAlpha = alpha;
+                ctx.fillStyle = p.color;
+                ctx.fillRect(Math.floor(p.x), Math.floor(p.y), p.size, p.size);
+            }
+            ctx.globalAlpha = 1;
+        }
+
+        function updateUI() {
+            const p1 = players[0];
+            const p2 = players[1];
+
+            document.getElementById('healthBar1').style.width = (p1.health / p1.maxHealth * 100) + '%';
+            document.getElementById('healthBar2').style.width = (p2.health / p2.maxHealth * 100) + '%';
+            document.getElementById('healthText1').textContent = `${p1.health}/${p1.maxHealth}`;
+            document.getElementById('healthText2').textContent = `${p2.health}/${p2.maxHealth}`;
+        }
+
+        function gameLoop() {
+            if (gameState === 'playing') {
+                players[0].update(players[1]);
+                players[1].update(players[0]);
+                updateParticles();
+                updateUI();
+            }
+
+            drawBackground();
+            
+            if (gameState === 'playing' || gameState === 'gameover') {
+                players.forEach(p => p.draw());
+                drawParticles();
+            }
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        function startGame() {
+            gameState = 'playing';
+            players = [
+                new Mech(150, 1),
+                new Mech(750, 2)
+            ];
+            particles = [];
+            
+            document.getElementById('startScreen').classList.remove('active');
+            document.getElementById('gameOverScreen').classList.remove('active');
+            document.getElementById('uiOverlay').style.display = 'flex';
+            document.getElementById('controlsInfo').style.display = 'block';
+        }
+
+        function endGame(winner) {
+            gameState = 'gameover';
+            document.getElementById('winnerText').textContent = `机甲 ${winner === 1 ? 'A' : 'B'} 获胜！`;
+            document.getElementById('winnerText').style.color = winner === 1 ? '#ff6b6b' : '#4ecdc4';
+            document.getElementById('gameOverScreen').classList.add('active');
+        }
+
+        function restartGame() {
+            startGame();
+        }
+
+        document.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+        });
+
+        document.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+
+        gameLoop();
+    </script>
+</body>
+</html>
